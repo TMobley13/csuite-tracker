@@ -1,122 +1,630 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Strategic Initiative Tracker</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strategic Initiative Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:        #1B2A4A;
+    --navy-light:  #2A3F6B;
+    --accent:      #2563EB;
+    --accent-light:#EFF6FF;
+    --green-bg:    #DCFCE7; --green-fg: #166534; --green-border: #86EFAC;
+    --amber-bg:    #FEF9C3; --amber-fg: #854D0E; --amber-border: #FDE047;
+    --red-bg:      #FEE2E2; --red-fg:   #991B1B; --red-border:   #FCA5A5;
+    --gray-50:     #F8FAFC; --gray-100: #F1F5F9; --gray-200: #E2E8F0;
+    --gray-300:    #CBD5E1; --gray-400: #94A3B8; --gray-600: #475569;
+    --gray-700:    #334155; --gray-800: #1E293B; --gray-900: #0F172A;
+    --white:       #FFFFFF;
+    --radius-sm:   6px; --radius:  10px; --radius-lg: 16px;
+    --shadow-sm:   0 1px 3px rgba(0,0,0,.08);
+    --shadow-md:   0 4px 16px rgba(0,0,0,.10);
+    --shadow-lg:   0 8px 32px rgba(0,0,0,.14);
+    --font: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  body { font-family: var(--font); background: var(--gray-50); color: var(--gray-800); min-height: 100vh; }
+
+  /* ── Login ── */
+  #login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+  }
+  .login-card {
+    background: var(--white); border-radius: var(--radius-lg); padding: 2.5rem 2rem;
+    width: 100%; max-width: 400px; box-shadow: var(--shadow-lg); text-align: center;
+  }
+  .login-logo {
+    width: 48px; height: 48px; background: var(--navy); border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem;
+    font-size: 22px; font-weight: 700; color: var(--white); letter-spacing: -1px;
+  }
+  .login-card h1 { font-size: 1.25rem; font-weight: 600; color: var(--gray-900); margin-bottom: .375rem; }
+  .login-card p  { font-size: .875rem; color: var(--gray-600); margin-bottom: 1.5rem; }
+  .login-card input {
+    width: 100%; padding: .625rem .875rem; border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-sm); font-size: .9rem; margin-bottom: .75rem;
+    outline: none; transition: border-color .15s;
+  }
+  .login-card input:focus { border-color: var(--accent); }
+  .btn-primary {
+    width: 100%; padding: .625rem 1rem; background: var(--navy); color: var(--white);
+    border: none; border-radius: var(--radius-sm); font-size: .9rem; font-weight: 500;
+    cursor: pointer; transition: background .15s;
+  }
+  .btn-primary:hover { background: var(--navy-light); }
+  #login-msg { font-size: .82rem; margin-top: .75rem; color: var(--accent); min-height: 1.2em; }
+
+  /* ── App shell ── */
+  #app { display: none; }
+
+  .topbar {
+    background: var(--navy); color: var(--white);
+    padding: 0 2rem; height: 56px; display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow-md);
+  }
+  .topbar-brand { font-size: 1rem; font-weight: 600; letter-spacing: -.01em; }
+  .topbar-right  { display: flex; align-items: center; gap: .75rem; }
+  .topbar-user   { font-size: .8rem; color: rgba(255,255,255,.65); }
+  .btn-signout {
+    font-size: .78rem; color: rgba(255,255,255,.7); background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.2); border-radius: var(--radius-sm);
+    padding: .3rem .75rem; cursor: pointer; transition: background .15s;
+  }
+  .btn-signout:hover { background: rgba(255,255,255,.18); }
+
+  .main { max-width: 1400px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
+
+  /* ── Dashboard stats ── */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+  .stat-card {
+    background: var(--white); border-radius: var(--radius); padding: 1.1rem 1.25rem;
+    box-shadow: var(--shadow-sm); border: 1px solid var(--gray-200);
+  }
+  .stat-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--gray-400); margin-bottom: .35rem; font-weight: 500; }
+  .stat-value { font-size: 2rem; font-weight: 600; line-height: 1; }
+  .stat-value.total  { color: var(--navy); }
+  .stat-value.green  { color: var(--green-fg); }
+  .stat-value.amber  { color: var(--amber-fg); }
+  .stat-value.red    { color: var(--red-fg); }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.25rem; gap: 1rem; flex-wrap: wrap;
+  }
+  .toolbar-left { display: flex; gap: .625rem; flex-wrap: wrap; }
+  .filter-select {
+    padding: .45rem .75rem; border: 1.5px solid var(--gray-200); border-radius: var(--radius-sm);
+    font-size: .82rem; background: var(--white); color: var(--gray-700); cursor: pointer; outline: none;
+  }
+  .filter-select:focus { border-color: var(--accent); }
+  .btn-new {
+    padding: .5rem 1.1rem; background: var(--accent); color: var(--white);
+    border: none; border-radius: var(--radius-sm); font-size: .85rem; font-weight: 500;
+    cursor: pointer; display: flex; align-items: center; gap: .4rem; transition: background .15s; white-space: nowrap;
+  }
+  .btn-new:hover { background: #1D4ED8; }
+
+  /* ── Category section ── */
+  .category-section { margin-bottom: 2rem; }
+  .category-header {
+    display: flex; align-items: center; gap: .75rem; margin-bottom: .75rem; padding-bottom: .5rem;
+    border-bottom: 2px solid var(--navy);
+  }
+  .category-label { font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--white); background: var(--navy); padding: .25rem .625rem; border-radius: 99px; }
+  .category-count { font-size: .78rem; color: var(--gray-400); }
+
+  /* ── Table ── */
+  .table-wrap { overflow-x: auto; border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+  table { width: 100%; border-collapse: collapse; background: var(--white); font-size: .85rem; }
+  thead th {
+    background: var(--gray-800); color: var(--white); font-size: .7rem; text-transform: uppercase;
+    letter-spacing: .06em; font-weight: 500; padding: .7rem 1rem; text-align: left; white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--gray-100); transition: background .1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--gray-50); }
+  tbody td { padding: .8rem 1rem; vertical-align: top; }
+  .td-name { font-weight: 500; color: var(--gray-900); min-width: 180px; }
+  .td-owner { color: var(--gray-600); white-space: nowrap; }
+  .td-desc { color: var(--gray-600); max-width: 280px; line-height: 1.5; font-size: .82rem; }
+  .td-actions { white-space: nowrap; }
+
+  /* ── RAG badge ── */
+  .rag { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; font-weight: 600; padding: .25rem .625rem; border-radius: 99px; white-space: nowrap; }
+  .rag-G { background: var(--green-bg); color: var(--green-fg); border: 1px solid var(--green-border); }
+  .rag-A { background: var(--amber-bg); color: var(--amber-fg); border: 1px solid var(--amber-border); }
+  .rag-R { background: var(--red-bg);   color: var(--red-fg);   border: 1px solid var(--red-border); }
+  .rag-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .rag-G .rag-dot { background: var(--green-fg); }
+  .rag-A .rag-dot { background: var(--amber-fg); }
+  .rag-R .rag-dot { background: var(--red-fg); }
+
+  /* ── Milestones ── */
+  .milestone-list { margin-top: .5rem; display: flex; flex-direction: column; gap: .3rem; }
+  .milestone-item { display: flex; align-items: center; gap: .4rem; font-size: .78rem; color: var(--gray-600); }
+  .milestone-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .milestone-date { color: var(--gray-400); font-size: .73rem; }
+
+  /* ── Action buttons ── */
+  .btn-edit {
+    font-size: .75rem; padding: .3rem .7rem; border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-sm); background: var(--white); color: var(--gray-700);
+    cursor: pointer; transition: all .15s; font-weight: 500;
+  }
+  .btn-edit:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-delete {
+    font-size: .75rem; padding: .3rem .7rem; border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-sm); background: var(--white); color: var(--red-fg);
+    cursor: pointer; transition: all .15s; font-weight: 500;
+  }
+  .btn-delete:hover { border-color: var(--red-fg); background: var(--red-bg); }
+
+  /* ── Modal overlay ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    z-index: 200; align-items: center; justify-content: center; padding: 1rem;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--white); border-radius: var(--radius-lg); width: 100%; max-width: 620px;
+    max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);
+  }
+  .modal-header {
+    padding: 1.25rem 1.5rem 1rem; border-bottom: 1px solid var(--gray-200);
+    display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--white); z-index: 1;
+  }
+  .modal-header h2 { font-size: 1rem; font-weight: 600; color: var(--gray-900); }
+  .btn-close { background: none; border: none; font-size: 1.3rem; color: var(--gray-400); cursor: pointer; line-height: 1; padding: .2rem; }
+  .btn-close:hover { color: var(--gray-700); }
+  .modal-body { padding: 1.25rem 1.5rem; }
+  .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: .625rem; background: var(--white); position: sticky; bottom: 0; }
+
+  /* ── Form fields ── */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .form-group { display: flex; flex-direction: column; gap: .375rem; }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-group label { font-size: .78rem; font-weight: 500; color: var(--gray-700); }
+  .form-group input, .form-group select, .form-group textarea {
+    padding: .55rem .75rem; border: 1.5px solid var(--gray-200); border-radius: var(--radius-sm);
+    font-size: .875rem; font-family: var(--font); color: var(--gray-800); outline: none; transition: border-color .15s; background: var(--white);
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+  .form-group textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+
+  /* ── Milestones in form ── */
+  .milestones-section { margin-top: .25rem; }
+  .milestone-row { display: grid; grid-template-columns: 1fr auto auto; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+  .milestone-row input { padding: .45rem .7rem; border: 1.5px solid var(--gray-200); border-radius: var(--radius-sm); font-size: .82rem; font-family: var(--font); outline: none; }
+  .milestone-row input:focus { border-color: var(--accent); }
+  .btn-remove-ms { background: none; border: none; color: var(--gray-400); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: .2rem; }
+  .btn-remove-ms:hover { color: var(--red-fg); }
+  .btn-add-ms {
+    font-size: .78rem; padding: .35rem .75rem; border: 1.5px dashed var(--gray-300);
+    border-radius: var(--radius-sm); background: none; color: var(--accent); cursor: pointer; transition: all .15s; font-weight: 500; margin-top: .25rem;
+  }
+  .btn-add-ms:hover { border-color: var(--accent); background: var(--accent-light); }
+
+  .btn-cancel {
+    padding: .5rem 1rem; border: 1.5px solid var(--gray-200); border-radius: var(--radius-sm);
+    background: var(--white); color: var(--gray-700); font-size: .875rem; cursor: pointer; transition: background .15s;
+  }
+  .btn-cancel:hover { background: var(--gray-100); }
+  .btn-save {
+    padding: .5rem 1.25rem; background: var(--navy); color: var(--white); border: none;
+    border-radius: var(--radius-sm); font-size: .875rem; font-weight: 500; cursor: pointer; transition: background .15s;
+  }
+  .btn-save:hover { background: var(--navy-light); }
+
+  /* ── Empty state ── */
+  .empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--gray-400); font-size: .875rem; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--gray-900); color: var(--white);
+    padding: .75rem 1.25rem; border-radius: var(--radius); font-size: .85rem; z-index: 999;
+    opacity: 0; transform: translateY(8px); transition: all .2s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 700px) {
+    .main { padding: 1rem; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .form-grid { grid-template-columns: 1fr; }
+    .topbar { padding: 0 1rem; }
+  }
+</style>
 </head>
 <body>
-  <div id="login-screen">
-    <h2>Sign in to the tracker</h2>
-    <input type="email" id="email" placeholder="your@email.com">
-    <button onclick="signIn()">Send magic link</button>
+
+<!-- ── Login ── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">SI</div>
+    <h1>Strategic Initiatives</h1>
+    <p>Enter your work email to receive a secure sign-in link.</p>
+    <input type="email" id="login-email" placeholder="you@bambooinsurance.com" />
+    <button class="btn-primary" onclick="signIn()">Send magic link</button>
+    <div id="login-msg"></div>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="app">
+  <div class="topbar">
+    <span class="topbar-brand">Strategic Initiative Tracker</span>
+    <div class="topbar-right">
+      <span class="topbar-user" id="user-email"></span>
+      <button class="btn-signout" onclick="signOut()">Sign out</button>
+    </div>
   </div>
 
-  <div id="app" style="display:none">
+  <div class="main">
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Total initiatives</div><div class="stat-value total" id="stat-total">—</div></div>
+      <div class="stat-card"><div class="stat-label">% On track</div><div class="stat-value green" id="stat-green">—</div></div>
+      <div class="stat-card"><div class="stat-label">% At risk</div><div class="stat-value amber" id="stat-amber">—</div></div>
+      <div class="stat-card"><div class="stat-label">% Off track</div><div class="stat-value red" id="stat-red">—</div></div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <select class="filter-select" id="filter-status" onchange="renderTracker()">
+          <option value="">All statuses</option>
+          <option value="On Track">On track</option>
+          <option value="At Risk">At risk</option>
+          <option value="Off Track">Off track</option>
+        </select>
+        <select class="filter-select" id="filter-owner" onchange="renderTracker()">
+          <option value="">All owners</option>
+        </select>
+      </div>
+      <button class="btn-new" onclick="openModal()">+ New initiative</button>
+    </div>
+
+    <!-- Tracker by category -->
     <div id="tracker"></div>
   </div>
+</div>
 
-  <script>
-    const { createClient } = supabase
+<!-- ── Modal ── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">New initiative</h2>
+      <button class="btn-close" onclick="closeModal()">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Initiative name</label>
+          <input type="text" id="f-name" placeholder="e.g. Southeast Asia market expansion">
+        </div>
+        <div class="form-group">
+          <label>Owner</label>
+          <input type="text" id="f-owner" placeholder="Full name">
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="f-category">
+            <option value="Growth Initiative">Growth Initiative</option>
+            <option value="Operational Excellence">Operational Excellence</option>
+            <option value="Corporate">Corporate</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Brief description</label>
+          <textarea id="f-desc" placeholder="What is this initiative and what outcome are we driving?"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="f-status">
+            <option value="On Track">On Track</option>
+            <option value="At Risk">At Risk</option>
+            <option value="Off Track">Off Track</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Milestones <span style="color:var(--gray-400);font-weight:400">(optional)</span></label>
+          <div class="milestones-section">
+            <div id="milestone-rows"></div>
+            <button class="btn-add-ms" onclick="addMilestoneRow()">+ Add milestone</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveInitiative()">Save initiative</button>
+    </div>
+  </div>
+</div>
 
-    const db = createClient(
-      'https://bvczjxwlwgyvjybhwlls.supabase.co',
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Y3pqeHdsd2d5dmp5Ymh3bGxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NjMwMTQsImV4cCI6MjEwMTQzOTAxNH0.ELPCQ3HbELldu-sSc_gF_t6XioDNH0uzVMW18ji9dyM'
-    )
+<div class="toast" id="toast"></div>
 
-    // Check login on page load
-    async function init() {
-      const { data: { session } } = await db.auth.getSession()
-      if (session) showApp()
-    }
+<script>
+const { createClient } = supabase;
+const db = createClient(
+  'https://https://bvczjxwlwgyvjybhwlls.supabase.co',  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Y3pqeHdsd2d5dmp5Ymh3bGxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NjMwMTQsImV4cCI6MjEwMTQzOTAxNH0.ELPCQ3HbELldu-sSc_gF_t6XioDNH0uzVMW18ji9dyM'
+);
 
-    // Send magic link
-    async function signIn() {
-      const email = document.getElementById('email').value
-      await db.auth.signInWithOtp({ email })
-      alert('Check your email for a login link!')
-    }
+const ADMIN_EMAIL = 'tmobley@bambooinsurance.com';
+const CATEGORIES  = ['Growth Initiative', 'Operational Excellence', 'Corporate'];
+const RAG_KEY     = { 'On Track': 'G', 'At Risk': 'A', 'Off Track': 'R' };
 
-    // Show the main app
-    async function showApp() {
-      document.getElementById('login-screen').style.display = 'none'
-      document.getElementById('app').style.display = 'block'
-      loadInitiatives()
-    }
+let currentUser  = null;
+let allData      = [];
+let editingId    = null;
 
-    // Load data from Supabase
-    async function loadInitiatives() {
-      const { data } = await db
-        .from('initiatives')
-        .select('*')
-        .order('department')
-      renderTable(data)
-    }
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function signIn() {
+  const email = document.getElementById('login-email').value.trim();
+  if (!email) return;
+  const msg = document.getElementById('login-msg');
+  msg.textContent = 'Sending link…';
+  const { error } = await db.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.origin }
+  });
+  msg.textContent = error ? 'Something went wrong. Try again.' : 'Check your email for a sign-in link!';
+}
 
-    // Save a row update
-    async function saveUpdate(id) {
-      const rag    = document.getElementById('rag-' + id).value
-      const pct    = document.getElementById('pct-' + id).value
-      const notes  = document.getElementById('notes-' + id).value
-      const next   = document.getElementById('next-' + id).value
+async function signOut() {
+  await db.auth.signOut();
+  location.reload();
+}
 
-      await db.from('initiatives').update({
-        rag_status:     rag,
-        pct_complete:   parseInt(pct),
-        notes:          notes,
-        next_milestone: next,
-        updated_at:     new Date().toISOString()
-      }).eq('id', id)
+async function init() {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    showApp();
+  }
+  db.auth.onAuthStateChange((_e, session) => {
+    if (session && !currentUser) { currentUser = session.user; showApp(); }
+  });
+}
 
-      loadInitiatives() // refresh the table
-    }
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('user-email').textContent = currentUser.email;
+  loadData();
+  subscribeRealtime();
+}
 
-    // Render the tracker table
-    function renderTable(rows) {
-      const html = `
-        <table border="1" cellpadding="8" style="width:100%;border-collapse:collapse">
-          <thead>
-            <tr>
-              <th>Initiative</th><th>Owner</th><th>Status</th>
-              <th>% Done</th><th>Notes</th><th>Next milestone</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map(r => `
-              <tr>
-                <td>${r.name}</td>
-                <td>${r.owner_name}</td>
-                <td>
-                  <select id="rag-${r.id}">
-                    <option ${r.rag_status==='On Track' ?'selected':''}>On Track</option>
-                    <option ${r.rag_status==='At Risk'  ?'selected':''}>At Risk</option>
-                    <option ${r.rag_status==='Off Track'?'selected':''}>Off Track</option>
-                  </select>
-                </td>
-                <td><input id="pct-${r.id}" type="number" min="0" max="100"
-                     value="${r.pct_complete}" style="width:60px"></td>
-                <td><textarea id="notes-${r.id}" rows="2"
-                     style="width:100%">${r.notes || ''}</textarea></td>
-                <td><input id="next-${r.id}" type="text"
-                     value="${r.next_milestone || ''}" style="width:100%"></td>
-                <td><button onclick="saveUpdate('${r.id}')">Save</button></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>`
-      document.getElementById('tracker').innerHTML = html
-    }
+function isAdmin()   { return currentUser && currentUser.email === ADMIN_EMAIL; }
+function isOwnerOf(row) {
+  return currentUser && row.owner_email === currentUser.email;
+}
+function canEdit(row) { return isAdmin() || isOwnerOf(row); }
 
-    // Listen for real-time updates from other users
-    db.channel('initiatives')
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'initiatives' },
-        () => loadInitiatives()
-      )
-      .subscribe()
+// ── Data ──────────────────────────────────────────────────────────────────────
+async function loadData() {
+  const { data, error } = await db
+    .from('initiatives')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (error) { console.error(error); return; }
+  allData = data || [];
+  renderStats();
+  renderOwnerFilter();
+  renderTracker();
+}
 
-    init()
-  </script>
+function subscribeRealtime() {
+  db.channel('initiatives-rt')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'initiatives' }, loadData)
+    .subscribe();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const total = allData.length;
+  const g = allData.filter(r => r.rag_status === 'On Track').length;
+  const a = allData.filter(r => r.rag_status === 'At Risk').length;
+  const r = allData.filter(r => r.rag_status === 'Off Track').length;
+  const pct = n => total ? Math.round(n / total * 100) + '%' : '—';
+  document.getElementById('stat-total').textContent  = total || '—';
+  document.getElementById('stat-green').textContent  = pct(g);
+  document.getElementById('stat-amber').textContent  = pct(a);
+  document.getElementById('stat-red').textContent    = pct(r);
+}
+
+function renderOwnerFilter() {
+  const owners = [...new Set(allData.map(r => r.owner_name).filter(Boolean))].sort();
+  const sel = document.getElementById('filter-owner');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All owners</option>' +
+    owners.map(o => `<option value="${o}" ${o===cur?'selected':''}>${o}</option>`).join('');
+}
+
+// ── Tracker ───────────────────────────────────────────────────────────────────
+function renderTracker() {
+  const statusF = document.getElementById('filter-status').value;
+  const ownerF  = document.getElementById('filter-owner').value;
+  const filtered = allData.filter(r =>
+    (!statusF || r.rag_status === statusF) &&
+    (!ownerF  || r.owner_name === ownerF)
+  );
+
+  const container = document.getElementById('tracker');
+  let html = '';
+
+  CATEGORIES.forEach(cat => {
+    const rows = filtered.filter(r => r.category === cat);
+    html += `
+      <div class="category-section">
+        <div class="category-header">
+          <span class="category-label">${cat}</span>
+          <span class="category-count">${rows.length} initiative${rows.length !== 1 ? 's' : ''}</span>
+        </div>
+        ${rows.length === 0
+          ? `<div class="empty-state">No initiatives in this category yet.</div>`
+          : `<div class="table-wrap"><table>
+              <thead><tr>
+                <th>Initiative</th>
+                <th>Owner</th>
+                <th>Description &amp; milestones</th>
+                <th>Status</th>
+                <th></th>
+              </tr></thead>
+              <tbody>
+                ${rows.map(r => rowHTML(r)).join('')}
+              </tbody>
+            </table></div>`
+        }
+      </div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function rowHTML(r) {
+  const ragKey  = RAG_KEY[r.rag_status] || 'G';
+  const milestones = (r.milestones || []);
+  const msHTML = milestones.length
+    ? `<div class="milestone-list">${milestones.map(m =>
+        `<div class="milestone-item">
+          <span class="milestone-dot"></span>
+          <span>${escHtml(m.name)}</span>
+          ${m.date ? `<span class="milestone-date">— ${escHtml(m.date)}</span>` : ''}
+        </div>`).join('')}</div>`
+    : '';
+
+  const editBtn   = canEdit(r)
+    ? `<button class="btn-edit" onclick="openEditModal('${r.id}')">Edit</button>`
+    : '';
+  const deleteBtn = isAdmin()
+    ? `<button class="btn-delete" onclick="deleteInitiative('${r.id}')">Delete</button>`
+    : '';
+
+  return `<tr>
+    <td class="td-name">${escHtml(r.name)}</td>
+    <td class="td-owner">${escHtml(r.owner_name || '')}</td>
+    <td class="td-desc">${escHtml(r.description || '')}${msHTML}</td>
+    <td><span class="rag rag-${ragKey}"><span class="rag-dot"></span>${escHtml(r.rag_status)}</span></td>
+    <td class="td-actions" style="display:flex;gap:.4rem;flex-wrap:wrap">${editBtn}${deleteBtn}</td>
+  </tr>`;
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openModal() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'New initiative';
+  document.getElementById('f-name').value     = '';
+  document.getElementById('f-owner').value    = '';
+  document.getElementById('f-category').value = 'Growth Initiative';
+  document.getElementById('f-desc').value     = '';
+  document.getElementById('f-status').value   = 'On Track';
+  document.getElementById('milestone-rows').innerHTML = '';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function openEditModal(id) {
+  const r = allData.find(x => x.id === id);
+  if (!r) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = 'Edit initiative';
+  document.getElementById('f-name').value     = r.name || '';
+  document.getElementById('f-owner').value    = r.owner_name || '';
+  document.getElementById('f-category').value = r.category || 'Growth Initiative';
+  document.getElementById('f-desc').value     = r.description || '';
+  document.getElementById('f-status').value   = r.rag_status || 'On Track';
+  document.getElementById('milestone-rows').innerHTML = '';
+  (r.milestones || []).forEach(m => addMilestoneRow(m.name, m.date));
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  editingId = null;
+}
+
+// Close modal on overlay click
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ── Milestones in form ────────────────────────────────────────────────────────
+function addMilestoneRow(name = '', date = '') {
+  const wrap = document.getElementById('milestone-rows');
+  const div  = document.createElement('div');
+  div.className = 'milestone-row';
+  div.innerHTML = `
+    <input type="text"  class="ms-name" placeholder="Milestone name" value="${escAttr(name)}">
+    <input type="date"  class="ms-date" value="${escAttr(date)}">
+    <button class="btn-remove-ms" onclick="this.parentElement.remove()" title="Remove">&#x2715;</button>`;
+  wrap.appendChild(div);
+}
+
+function getMilestones() {
+  return [...document.querySelectorAll('#milestone-rows .milestone-row')].map(row => ({
+    name: row.querySelector('.ms-name').value.trim(),
+    date: row.querySelector('.ms-date').value
+  })).filter(m => m.name);
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+async function saveInitiative() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { showToast('Please enter an initiative name.'); return; }
+
+  const payload = {
+    name,
+    owner_name:  document.getElementById('f-owner').value.trim(),
+    owner_email: currentUser.email,
+    category:    document.getElementById('f-category').value,
+    description: document.getElementById('f-desc').value.trim(),
+    rag_status:  document.getElementById('f-status').value,
+    milestones:  getMilestones(),
+    updated_at:  new Date().toISOString()
+  };
+
+  let error;
+  if (editingId) {
+    ({ error } = await db.from('initiatives').update(payload).eq('id', editingId));
+  } else {
+    ({ error } = await db.from('initiatives').insert([payload]));
+  }
+
+  if (error) { showToast('Error saving. Please try again.'); console.error(error); return; }
+  closeModal();
+  showToast(editingId ? 'Initiative updated.' : 'Initiative added.');
+  loadData();
+}
+
+async function deleteInitiative(id) {
+  if (!confirm('Delete this initiative? This cannot be undone.')) return;
+  const { error } = await db.from('initiatives').delete().eq('id', id);
+  if (error) { showToast('Error deleting.'); return; }
+  showToast('Initiative deleted.');
+  loadData();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s).replace(/"/g,'&quot;');
+}
+
+init();
+</script>
 </body>
 </html>
