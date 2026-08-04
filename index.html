@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Strategic Initiative Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div id="login-screen">
+    <h2>Sign in to the tracker</h2>
+    <input type="email" id="email" placeholder="your@email.com">
+    <button onclick="signIn()">Send magic link</button>
+  </div>
+
+  <div id="app" style="display:none">
+    <div id="tracker"></div>
+  </div>
+
+  <script>
+    const { createClient } = supabase
+
+    const db = createClient(
+      'https://YOUR_PROJECT.supabase.co',
+      'YOUR_ANON_PUBLIC_KEY'
+    )
+
+    // Check login on page load
+    async function init() {
+      const { data: { session } } = await db.auth.getSession()
+      if (session) showApp()
+    }
+
+    // Send magic link
+    async function signIn() {
+      const email = document.getElementById('email').value
+      await db.auth.signInWithOtp({ email })
+      alert('Check your email for a login link!')
+    }
+
+    // Show the main app
+    async function showApp() {
+      document.getElementById('login-screen').style.display = 'none'
+      document.getElementById('app').style.display = 'block'
+      loadInitiatives()
+    }
+
+    // Load data from Supabase
+    async function loadInitiatives() {
+      const { data } = await db
+        .from('initiatives')
+        .select('*')
+        .order('department')
+      renderTable(data)
+    }
+
+    // Save a row update
+    async function saveUpdate(id) {
+      const rag    = document.getElementById('rag-' + id).value
+      const pct    = document.getElementById('pct-' + id).value
+      const notes  = document.getElementById('notes-' + id).value
+      const next   = document.getElementById('next-' + id).value
+
+      await db.from('initiatives').update({
+        rag_status:     rag,
+        pct_complete:   parseInt(pct),
+        notes:          notes,
+        next_milestone: next,
+        updated_at:     new Date().toISOString()
+      }).eq('id', id)
+
+      loadInitiatives() // refresh the table
+    }
+
+    // Render the tracker table
+    function renderTable(rows) {
+      const html = `
+        <table border="1" cellpadding="8" style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr>
+              <th>Initiative</th><th>Owner</th><th>Status</th>
+              <th>% Done</th><th>Notes</th><th>Next milestone</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${r.name}</td>
+                <td>${r.owner_name}</td>
+                <td>
+                  <select id="rag-${r.id}">
+                    <option ${r.rag_status==='On Track' ?'selected':''}>On Track</option>
+                    <option ${r.rag_status==='At Risk'  ?'selected':''}>At Risk</option>
+                    <option ${r.rag_status==='Off Track'?'selected':''}>Off Track</option>
+                  </select>
+                </td>
+                <td><input id="pct-${r.id}" type="number" min="0" max="100"
+                     value="${r.pct_complete}" style="width:60px"></td>
+                <td><textarea id="notes-${r.id}" rows="2"
+                     style="width:100%">${r.notes || ''}</textarea></td>
+                <td><input id="next-${r.id}" type="text"
+                     value="${r.next_milestone || ''}" style="width:100%"></td>
+                <td><button onclick="saveUpdate('${r.id}')">Save</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`
+      document.getElementById('tracker').innerHTML = html
+    }
+
+    // Listen for real-time updates from other users
+    db.channel('initiatives')
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'initiatives' },
+        () => loadInitiatives()
+      )
+      .subscribe()
+
+    init()
+  </script>
+</body>
+</html>
